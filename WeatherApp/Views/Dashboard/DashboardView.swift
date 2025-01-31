@@ -7,6 +7,8 @@ struct DashboardView: View {
     @State private var weatherCards: [WeatherCard] = []
     @State private var isLoading = true
     @State private var showingAddCity = false
+    @State private var cityToDelete: WeatherCard?
+    @State private var isEditing = false
     
     private var filteredCards: [WeatherCard] {
         if searchText.isEmpty {
@@ -37,6 +39,19 @@ struct DashboardView: View {
                         LazyVStack(spacing: 12) {
                             ForEach(filteredCards) { card in
                                 WeatherCardView(card: card)
+                                    .overlay(alignment: .topTrailing) {
+                                        if isEditing {
+                                            Button {
+                                                cityToDelete = card
+                                            } label: {
+                                                Image(systemName: "minus.circle.fill")
+                                                    .font(.title2)
+                                                    .foregroundColor(.red)
+                                                    .background(Circle().fill(.white))
+                                            }
+                                            .offset(x: 10, y: -10)
+                                        }
+                                    }
                             }
                         }
                         .padding(.horizontal)
@@ -47,6 +62,17 @@ struct DashboardView: View {
             .toolbarColorScheme(.light, for: .navigationBar)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        withAnimation {
+                            isEditing.toggle()
+                        }
+                    } label: {
+                        Text(isEditing ? "Done" : "Edit")
+                            .foregroundColor(.white)
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(destination: CitySearchView()) {
                         Image(systemName: "plus")
@@ -56,6 +82,24 @@ struct DashboardView: View {
             }
             .task {
                 await loadWeatherData()
+            }
+            .confirmationDialog(
+                "Delete City",
+                isPresented: Binding(
+                    get: { cityToDelete != nil },
+                    set: { if !$0 { cityToDelete = nil } }
+                ),
+                presenting: cityToDelete
+            ) { card in
+                Button("Delete \(card.cityName)", role: .destructive) {
+                    deleteCity(card)
+                    cityToDelete = nil
+                    if weatherCards.isEmpty {
+                        isEditing = false
+                    }
+                }
+            } message: { card in
+                Text("Are you sure you want to remove \(card.cityName) from your cities?")
             }
         }
     }
@@ -99,5 +143,14 @@ struct DashboardView: View {
         
         weatherCards = updatedCards
         isLoading = false
+    }
+    
+    private func deleteCity(_ card: WeatherCard) {
+        if let city = card.city {
+            withAnimation {
+                City.defaultCities.removeAll { $0.name == city.name && $0.country == city.country }
+                weatherCards.removeAll { $0.id == card.id }
+            }
+        }
     }
 } 
